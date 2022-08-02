@@ -43,15 +43,10 @@ def data_merge(a, b):
                 # append to list
                 a.append(b)
         elif isinstance(a, dict):
-            # dicts must be merged
-            if isinstance(b, dict):
-                for key in b:
-                    if key in a:
-                        a[key] = data_merge(a[key], b[key])
-                    else:
-                        a[key] = b[key]
-            else:
+            if not isinstance(b, dict):
                 raise YamlReaderError('Cannot merge non-dict "%s" into dict "%s"' % (b, a))
+            for key in b:
+                a[key] = data_merge(a[key], b[key]) if key in a else b[key]
         else:
             raise YamlReaderError('NOT IMPLEMENTED "%s" into "%s"' % (b, a))
     except TypeError as e:
@@ -76,10 +71,7 @@ def yaml_load(source, defaultdata=NO_DEFAULT):
     """
     logger = logging.getLogger(__name__)
     logger.debug("initialized with source=%s, defaultdata=%s", source, defaultdata)
-    if defaultdata is NO_DEFAULT:
-        data = None
-    else:
-        data = defaultdata
+    data = None if defaultdata is NO_DEFAULT else defaultdata
     files = []
     if type(source) is not str and len(source) == 1:
         # when called from __main source is always a list, even if it contains only one item.
@@ -106,23 +98,25 @@ def yaml_load(source, defaultdata=NO_DEFAULT):
                 logger.debug("YAML LOAD: %s", new_data)
             except MarkedYAMLError as e:
                 logger.error("YAML Error: %s", e)
-                raise YamlReaderError("YAML Error: %s" % str(e))
+                raise YamlReaderError(f"YAML Error: {str(e)}")
             if new_data is not None:
                 data = data_merge(data, new_data)
-    else:
-        if defaultdata is NO_DEFAULT:
-            logger.error("No YAML data found in %s and no default data given", source)
-            raise YamlReaderError("No YAML data found in %s" % source)
+    elif defaultdata is NO_DEFAULT:
+        logger.error("No YAML data found in %s and no default data given", source)
+        raise YamlReaderError(f"No YAML data found in {source}")
 
     return data
 
 
 def __main():
     import optparse
-    parser = optparse.OptionParser(usage="%prog [options] source...",
-                                   description="Merge YAML data from given files, dir or file glob",
-                                   version="%" + "prog %s" % __version__,
-                                   prog="yamlreader")
+    parser = optparse.OptionParser(
+        usage="%prog [options] source...",
+        description="Merge YAML data from given files, dir or file glob",
+        version="%" + f"prog {__version__}",
+        prog="yamlreader",
+    )
+
     parser.add_option("--debug", dest="debug", action="store_true", default=False,
                       help="Enable debug logging [%default]")
     options, args = parser.parse_args()
